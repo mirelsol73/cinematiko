@@ -40,8 +40,12 @@ const unsigned int RECORD_FREQ = 10; // in ms
 const unsigned int READ_FREQ = 1000; // read frequency from the input device in ms
 unsigned long lastReadTime = 0; // when the last reading from input device was done
 unsigned long recordTime = 0;
-//unsigned long currentTime = 0;
 unsigned int recordValues[MAX_RECORDS];
+
+// Constants used when computing mapping between input value (sensor) and output value (motor)
+const float MAP_HIGH = (float)abs(MOTOR_MAX_DELAY - MOTOR_MIN_DELAY) / (float)abs(1023 - DEAD_BAND_SUP);
+const float MAP_LOW = ((float)MOTOR_MAX_DELAY - (float)MOTOR_MIN_DELAY) / (float)(1023 - 0);
+
 char cmdRead = STOP; // default action
 
 void setup() {
@@ -58,17 +62,11 @@ void setup() {
   digitalWrite(ENABLE_PIN, HIGH);
   
   nbRecords = 0;
-  /*
-  for (int i=0; i<MAX_RECORDS; i++) {
-    recordValues[i] = 0;
-  }
-  */
 }
 
 void loop() {
   mainLoop();
-  //move(1020);
-  //stop();
+  //move(1023);
 }
 
 void mainLoop() {
@@ -80,6 +78,7 @@ void mainLoop() {
   }
   if (cmdRead == MOVE) {
     /*
+    // If we want to make sampling
     if (millis() - lastReadTime > READ_FREQ) {
       sensorCurValue = analogRead(A1);
       lastReadTime = millis();
@@ -101,6 +100,7 @@ void mainLoop() {
   else if (cmdRead == PLAY) {
     for (int i=0; i<nbRecords; i++) {
       unsigned long curTime = millis();
+      // Sampling
       while (millis() - curTime <= RECORD_FREQ) {
         move(recordValues[i]);
         analogRead(A1); // Just to simulate the delay introduced when recording values
@@ -122,26 +122,24 @@ void mainLoop() {
   }
 }
 
-void readValueFromMotor() {
-}
-
 void move(int sensorCurValue) {
   if (sensorCurValue <= DEAD_BAND_INF) { // Define a "dead band" so that the robot doesn't move within a range of values
     if (!lastDirLow) {
       digitalWrite(DIR_PIN, LOW); // Set the direction
     }
     lastDirLow = true;
-    //motorDelay = mapAnalogToDelayLow(sensorCurValue, 0, DEAD_BAND_INF, MOTOR_MIN_DELAY, MOTOR_MAX_DELAY);
-    motorDelay = map(sensorCurValue, 0, DEAD_BAND_INF, MOTOR_MIN_DELAY, MOTOR_MAX_DELAY);
+    motorDelay = mapAnalogToDelayLow(sensorCurValue, 0, DEAD_BAND_INF, MOTOR_MIN_DELAY, MOTOR_MAX_DELAY);
+    //motorDelay = map(sensorCurValue, 0, DEAD_BAND_INF, MOTOR_MIN_DELAY, MOTOR_MAX_DELAY);
     moveOneStep(motorDelay);
   }
   else if (sensorCurValue >= DEAD_BAND_SUP) {
     if (lastDirLow) {
+      Serial.println("HIGH");
       digitalWrite(DIR_PIN, HIGH); // Set the direction
     }
     lastDirLow = false;
-    //motorDelay = mapAnalogToDelayHigh(sensorCurValue, DEAD_BAND_SUP, 1023, MOTOR_MIN_DELAY, MOTOR_MAX_DELAY);
-    motorDelay = map(sensorCurValue, DEAD_BAND_SUP, 1023, MOTOR_MAX_DELAY, MOTOR_MIN_DELAY);
+    motorDelay = mapAnalogToDelayHigh(sensorCurValue, DEAD_BAND_SUP, 1023, MOTOR_MIN_DELAY, MOTOR_MAX_DELAY);
+    //motorDelay = map(sensorCurValue, DEAD_BAND_SUP, 1023, MOTOR_MAX_DELAY, MOTOR_MIN_DELAY);
     moveOneStep(motorDelay);
   }
   else {
@@ -163,11 +161,13 @@ void stop() {
 
 // Map from analog value to delay for motor when direction is "high"
 float mapAnalogToDelayHigh(float x, float in_min, float in_max, float out_min, float out_max) {
-  return out_max - (x - in_min) * (abs(out_max - out_min) / abs(in_max - in_min));
+  //return out_max - (x - in_min) * (abs(out_max - out_min) / abs(in_max - in_min));
+  return out_max - (x - in_min) * MAP_HIGH;
 } 
 
 // Map from analog value to delay for motor when direction is "high"
 float mapAnalogToDelayLow(float x, float in_min, float in_max, float out_min, float out_max) {
-  return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+  //return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+  return (x - in_min) * MAP_LOW + (float)MOTOR_MIN_DELAY;
 } 
 

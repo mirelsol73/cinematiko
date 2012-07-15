@@ -17,7 +17,6 @@ const byte DIR_PIN = 3;
 const byte ENABLE_PIN = 4;
 const byte STEP_PIN = 2;
 
-const unsigned int MOTOR_CALIBRATE = 1750;
 const unsigned int MOTOR_MIN_DELAY = 3;
 const unsigned int MOTOR_MAX_DELAY = 5000;
 
@@ -28,14 +27,20 @@ const unsigned int DEAD_BAND_SUP = 515;
 unsigned int sensorCurValue = 0;
 unsigned int motorDelay = 0;
 
-const char RECORD = 'r';
+boolean lastDirLow = true;
+
+const char MOVE = 'm'; // Just move
+const char RECORD = 'r'; // Move and record
 const char PLAY = 'p';
 const char STOP = 's';
+
 const unsigned int MAX_RECORDS = 3500;
 int nbRecords = 0;
 const unsigned int RECORD_FREQ = 10; // in ms
+const unsigned int READ_FREQ = 1000; // read frequency from the input device in ms
+unsigned long lastReadTime = 0; // when the last reading from input device was done
 unsigned long recordTime = 0;
-unsigned long currentTime = 0;
+//unsigned long currentTime = 0;
 unsigned int recordValues[MAX_RECORDS];
 char cmdRead = STOP; // default action
 
@@ -62,7 +67,8 @@ void setup() {
 
 void loop() {
   mainLoop();
-  //move(3);
+  //move(1020);
+  //stop();
 }
 
 void mainLoop() {
@@ -72,7 +78,18 @@ void mainLoop() {
       nbRecords = 0;
     }
   }
-  if (cmdRead == RECORD && nbRecords < MAX_RECORDS) { //  && nbRecords < MAX_RECORDS
+  if (cmdRead == MOVE) {
+    /*
+    if (millis() - lastReadTime > READ_FREQ) {
+      sensorCurValue = analogRead(A1);
+      lastReadTime = millis();
+    }
+    move(sensorCurValue);
+    */
+    sensorCurValue = analogRead(A1);
+    move(sensorCurValue);
+  }
+  else if (cmdRead == RECORD && nbRecords < MAX_RECORDS) {
     sensorCurValue = analogRead(A1); // Get a value from 0 to 1023
     if (millis() - recordTime >= RECORD_FREQ) {
       recordValues[nbRecords] = sensorCurValue;
@@ -82,10 +99,7 @@ void mainLoop() {
     move(sensorCurValue);
   }
   else if (cmdRead == PLAY) {
-    Serial.print("Replaying the record : ");
-    Serial.println(nbRecords);
     for (int i=0; i<nbRecords; i++) {
-      Serial.println(recordValues[i]);
       unsigned long curTime = millis();
       while (millis() - curTime <= RECORD_FREQ) {
         move(recordValues[i]);
@@ -93,7 +107,6 @@ void mainLoop() {
       }
     }
     digitalWrite(ENABLE_PIN, HIGH);
-    //nbRecords = 0;
     recordTime = 0;
     cmdRead = STOP;
   }
@@ -102,29 +115,32 @@ void mainLoop() {
     digitalWrite(ENABLE_PIN, HIGH);
     Serial.print("Values recorded : ");
     Serial.println(nbRecords);
-    for (int i=0; i<nbRecords; i++) {
-      Serial.println(recordValues[i]);
-    }
   }
   else {
     Serial.print("Unknown command : ");
     Serial.println(cmdRead);
   }
-  /*
-  sensorCurValue = analogRead(A1); // Get a value from 0 to 1023
-  move(sensorCurValue, 'r');
-  */
-  //stop();
+}
+
+void readValueFromMotor() {
 }
 
 void move(int sensorCurValue) {
   if (sensorCurValue <= DEAD_BAND_INF) { // Define a "dead band" so that the robot doesn't move within a range of values
-    digitalWrite(DIR_PIN, LOW); // Set the direction
+    if (!lastDirLow) {
+      digitalWrite(DIR_PIN, LOW); // Set the direction
+    }
+    lastDirLow = true;
+    //motorDelay = mapAnalogToDelayLow(sensorCurValue, 0, DEAD_BAND_INF, MOTOR_MIN_DELAY, MOTOR_MAX_DELAY);
     motorDelay = map(sensorCurValue, 0, DEAD_BAND_INF, MOTOR_MIN_DELAY, MOTOR_MAX_DELAY);
     moveOneStep(motorDelay);
   }
   else if (sensorCurValue >= DEAD_BAND_SUP) {
-    digitalWrite(DIR_PIN, HIGH); // Set the direction
+    if (lastDirLow) {
+      digitalWrite(DIR_PIN, HIGH); // Set the direction
+    }
+    lastDirLow = false;
+    //motorDelay = mapAnalogToDelayHigh(sensorCurValue, DEAD_BAND_SUP, 1023, MOTOR_MIN_DELAY, MOTOR_MAX_DELAY);
     motorDelay = map(sensorCurValue, DEAD_BAND_SUP, 1023, MOTOR_MAX_DELAY, MOTOR_MIN_DELAY);
     moveOneStep(motorDelay);
   }
@@ -144,3 +160,14 @@ void moveOneStep(int microSecs) {
 void stop() {
   digitalWrite(ENABLE_PIN, LOW);
 }
+
+// Map from analog value to delay for motor when direction is "high"
+float mapAnalogToDelayHigh(float x, float in_min, float in_max, float out_min, float out_max) {
+  return out_max - (x - in_min) * (abs(out_max - out_min) / abs(in_max - in_min));
+} 
+
+// Map from analog value to delay for motor when direction is "high"
+float mapAnalogToDelayLow(float x, float in_min, float in_max, float out_min, float out_max) {
+  return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+} 
+

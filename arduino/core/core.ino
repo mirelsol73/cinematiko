@@ -17,8 +17,11 @@ const byte DIR_PIN = 3;
 const byte ENABLE_PIN = 4;
 const byte STEP_PIN = 2;
 
+const int SENSOR_PIN_1 = A1;
+
 const unsigned int MOTOR_MIN_DELAY = 3;
 const unsigned int MOTOR_MAX_DELAY = 5000;
+const unsigned int CRUISE_MOTOR_DELAY = 1000; // Motor speed when moving to zero or start point
 
 const unsigned int DEAD_BAND_INF = 505;
 const unsigned int DEAD_BAND_MID = 511;
@@ -31,9 +34,12 @@ boolean lastDirLow = true;
 
 const char MOVE = 'm'; // Just move
 const char RECORD = 'r'; // Move and record
-const char PLAY = 'p';
+const char PLAY = 'p'; // Replay movement
 const char STOP = 's';
+const char ZERO = 'z'; // Set "zero" point
+const char GOTO_ZERO = 'h';
 
+int nbImpulsFromZeroPoint = 0;
 const unsigned int MAX_RECORDS = 3500;
 int nbRecords = 0;
 const unsigned int RECORD_FREQ = 10; // in ms
@@ -54,7 +60,7 @@ void setup() {
   cbi(ADCSRA,ADPS1) ;
   cbi(ADCSRA,ADPS0) ;
   
-  Serial.begin(9600);
+  Serial.begin(115200);
   pinMode(DIR_PIN, OUTPUT);
   pinMode(ENABLE_PIN, OUTPUT);
   pinMode(STEP_PIN, OUTPUT);
@@ -66,6 +72,7 @@ void setup() {
 
 void loop() {
   mainLoop();
+  //moveOneStep(200);
   //move(1023);
 }
 
@@ -80,16 +87,16 @@ void mainLoop() {
     /*
     // If we want to make sampling
     if (millis() - lastReadTime > READ_FREQ) {
-      sensorCurValue = analogRead(A1);
+      sensorCurValue = readValueFromSensor(SENSOR_PIN_1);
       lastReadTime = millis();
     }
     move(sensorCurValue);
     */
-    sensorCurValue = analogRead(A1);
+    sensorCurValue = readValueFromSensor(SENSOR_PIN_1);
     move(sensorCurValue);
   }
   else if (cmdRead == RECORD && nbRecords < MAX_RECORDS) {
-    sensorCurValue = analogRead(A1); // Get a value from 0 to 1023
+    sensorCurValue = readValueFromSensor(SENSOR_PIN_1); // Get a value from 0 to 1023
     if (millis() - recordTime >= RECORD_FREQ) {
       recordValues[nbRecords] = sensorCurValue;
       recordTime = millis();
@@ -100,15 +107,23 @@ void mainLoop() {
   else if (cmdRead == PLAY) {
     for (int i=0; i<nbRecords; i++) {
       unsigned long curTime = millis();
-      // Sampling
+      // Replay sampling
       while (millis() - curTime <= RECORD_FREQ) {
         move(recordValues[i]);
-        analogRead(A1); // Just to simulate the delay introduced when recording values
+        readValueFromSensor(SENSOR_PIN_1); // Just to simulate the delay introduced when recording values
       }
     }
     digitalWrite(ENABLE_PIN, HIGH);
     recordTime = 0;
     cmdRead = STOP;
+  }
+  else if (cmdRead == ZERO) {
+    Serial.println("Set zero point");
+    nbImpulsFromZeroPoint = 0;
+  }
+  else if (cmdRead == GOTO_ZERO) {
+    Serial.println("Go to zero point");
+    moveToZero();
   }
   else if (cmdRead == STOP) {
     Serial.println("Stopping the motor");
@@ -124,6 +139,7 @@ void mainLoop() {
 
 void move(int sensorCurValue) {
   if (sensorCurValue <= DEAD_BAND_INF) { // Define a "dead band" so that the robot doesn't move within a range of values
+    nbImpulsFromZeroPoint--;
     if (!lastDirLow) {
       digitalWrite(DIR_PIN, LOW); // Set the direction
     }
@@ -133,8 +149,8 @@ void move(int sensorCurValue) {
     moveOneStep(motorDelay);
   }
   else if (sensorCurValue >= DEAD_BAND_SUP) {
+    nbImpulsFromZeroPoint++;
     if (lastDirLow) {
-      Serial.println("HIGH");
       digitalWrite(DIR_PIN, HIGH); // Set the direction
     }
     lastDirLow = false;
@@ -145,18 +161,36 @@ void move(int sensorCurValue) {
   else {
     digitalWrite(ENABLE_PIN, HIGH);
   }
-  
 }
 
 void moveOneStep(int microSecs) {
   digitalWrite(STEP_PIN, LOW);
-  delayMicroseconds(2);
+  //delayMicroseconds(2);
   digitalWrite(STEP_PIN, HIGH);
   delayMicroseconds(microSecs);
 }
 
+void moveToZero() {
+  Serial.println(nbImpulsFromZeroPoint);
+  if (nbImpulsFromZeroPoint > 0) {
+    digitalWrite(DIR_PIN, LOW); // We must go back
+  }
+  else {
+    digitalWrite(DIR_PIN, HIGH); // We must go back
+  }
+  nbImpulsFromZeroPoint = abs(nbImpulsFromZeroPoint);
+  for (int i=0; i<nbImpulsFromZeroPoint; i++) {
+    moveOneStep(CRUISE_MOTOR_DELAY);
+  }
+  nbImpulsFromZeroPoint = 0;
+}
+
 void stop() {
   digitalWrite(ENABLE_PIN, LOW);
+}
+
+int readValueFromSensor(int pin) {
+  return analogRead(pin);
 }
 
 // Map from analog value to delay for motor when direction is "high"

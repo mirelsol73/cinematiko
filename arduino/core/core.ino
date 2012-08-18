@@ -48,7 +48,7 @@ const unsigned int MAX_RECORDS = 3500;
 int nbRecords = 0;
 const unsigned int RECORD_FREQ = 10; // in ms
 unsigned long lastReadTime = 0; // when the last reading from input device was done
-unsigned long recordTime = 0;
+unsigned long lastRecordTime = 0;
 unsigned int recordValues[MAX_RECORDS];
 
 // Constants used when computing mapping between input value (sensor) and output value (motor)
@@ -94,9 +94,9 @@ void mainLoop() {
   else if (cmdRead == RECORD) {
     if (nbRecords < MAX_RECORDS) {
       sensorCurValue = readValueFromSensor(SENSOR_PIN_1);
-      if (millis() - recordTime >= RECORD_FREQ) {
+      if (millis() - lastRecordTime >= RECORD_FREQ) {
         recordValues[nbRecords] = sensorCurValue;
-        recordTime = millis();
+        lastRecordTime = millis();
         nbRecords++;
       }
       move(sensorCurValue);
@@ -112,7 +112,6 @@ void mainLoop() {
   }
   else if (cmdRead == PLAY) {
     moveToStartRecord();
-    Serial.println(curNbImpuls);
     Serial.println("Mvt replay");
     long nbImpuls = 0;
     for (int i=0; i<nbRecords; i++) {
@@ -126,8 +125,7 @@ void mainLoop() {
     }
     digitalWrite(ENABLE_PIN, HIGH);
     Serial.println("Ok");
-    Serial.println(nbImpuls);
-    recordTime = 0;
+    lastRecordTime = 0;
     cmdRead = STOP;
   }
   else if (cmdRead == ZERO) {
@@ -142,9 +140,7 @@ void mainLoop() {
     digitalWrite(ENABLE_PIN, HIGH);
     cmdRead = NONE;
     Serial.println("Stop");
-    Serial.println("Cur pos:" + String(curNbImpuls));
-    Serial.println("Records#:" + String(nbRecords));
-    Serial.println("Ram:" + String(freeRam()));
+    displayCurInfos();
   }
   else if (cmdRead == NONE) {
     //Serial.println("Waiting for a command");
@@ -215,12 +211,6 @@ void moveToStartRecord() {
   moveRelative(curNbImpuls - startRecordX);
 }
 
-int freeRam () {
-  extern int __heap_start, *__brkval; 
-  int v; 
-  return (int) &v - (__brkval == 0 ? (int) &__heap_start : (int) __brkval); 
-}
-
 void stop() {
   digitalWrite(ENABLE_PIN, LOW);
 }
@@ -251,3 +241,14 @@ float mapAnalogToDelayLow(float x, float in_min, float in_max, float out_min, fl
   return (x - in_min) * MAP_LOW + (float)MOTOR_MIN_DELAY;
 } 
 
+void displayCurInfos() {
+  Serial.println("Cur pos:" + String(curNbImpuls));
+  Serial.println("Records#:" + String(nbRecords));
+  Serial.println("Ram:" + String(freeRam()));
+}
+
+int freeRam () {
+  extern int __heap_start, *__brkval; 
+  int v; 
+  return (int) &v - (__brkval == 0 ? (int) &__heap_start : (int) __brkval); 
+}

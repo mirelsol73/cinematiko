@@ -42,7 +42,7 @@ const char ZERO = 'z'; // Set "zero" point
 const char GOTO_ZERO = 'h';
 const char GOTO_START = 'g'; // Go to start point of last record
 
-long curX = 0; // Current motor position
+long curNbImpuls = 0; // Current motor position
 long startRecordX = 0; // Current motor position when start recording
 const unsigned int MAX_RECORDS = 3500;
 int nbRecords = 0;
@@ -79,11 +79,12 @@ void loop() {
 
 void mainLoop() {
   if (Serial.available() > 0) {
+    Serial.println("---");
     cmdRead = Serial.read();
     if (cmdRead == RECORD) {
-      startRecordX = curX;
+      startRecordX = curNbImpuls;
       nbRecords = 0;
-      Serial.println("Starting recording movement...");
+      Serial.println("Recording movement");
     }
   }
   if (cmdRead == MOVE) {
@@ -92,7 +93,7 @@ void mainLoop() {
   }
   else if (cmdRead == RECORD) {
     if (nbRecords < MAX_RECORDS) {
-      sensorCurValue = readValueFromSensor(SENSOR_PIN_1); // Get a value from 0 to 1023
+      sensorCurValue = readValueFromSensor(SENSOR_PIN_1);
       if (millis() - recordTime >= RECORD_FREQ) {
         recordValues[nbRecords] = sensorCurValue;
         recordTime = millis();
@@ -101,7 +102,7 @@ void mainLoop() {
       move(sensorCurValue);
     }
     else {
-      Serial.println("Maximum nb of records reached : " + String(MAX_RECORDS));
+      Serial.println("Stop : max nb of records reached!");
       cmdRead = STOP;
     }
   }
@@ -111,24 +112,27 @@ void mainLoop() {
   }
   else if (cmdRead == PLAY) {
     moveToStartRecord();
-    //Serial.println("Replaying movement... " + String(nbRecords) + " records");
-    Serial.println("Replaying movement... ");
+    Serial.println(curNbImpuls);
+    Serial.println("Mvt replay");
+    long nbImpuls = 0;
     for (int i=0; i<nbRecords; i++) {
       unsigned long curTime = millis();
       // Replay sampling
-      while (millis() - curTime <= RECORD_FREQ) {
+      while (millis() - curTime < RECORD_FREQ) {
         move(recordValues[i]);
         readValueFromSensor(SENSOR_PIN_1); // Just to simulate the delay introduced when recording values
+        nbImpuls++;
       }
     }
     digitalWrite(ENABLE_PIN, HIGH);
-    Serial.println("Done");
+    Serial.println("Ok");
+    Serial.println(nbImpuls);
     recordTime = 0;
     cmdRead = STOP;
   }
   else if (cmdRead == ZERO) {
-    Serial.println("Zero point set");
-    curX = 0;
+    Serial.println("Zero set");
+    curNbImpuls = 0;
   }
   else if (cmdRead == GOTO_ZERO) {
     moveToZero();
@@ -137,14 +141,16 @@ void mainLoop() {
   else if (cmdRead == STOP) {
     digitalWrite(ENABLE_PIN, HIGH);
     cmdRead = NONE;
-    Serial.println("Motor stopped");
-    Serial.println("Current position : " + String(curX));
+    Serial.println("Stop");
+    Serial.println("Cur pos:" + String(curNbImpuls));
+    Serial.println("Records#:" + String(nbRecords));
+    Serial.println("Ram:" + String(freeRam()));
   }
   else if (cmdRead == NONE) {
     //Serial.println("Waiting for a command");
   }
   else {
-    Serial.print("Unknown command : " + cmdRead);
+    Serial.print("Unknown cmd:" + cmdRead);
     Serial.println(cmdRead);
   }
 }
@@ -176,13 +182,13 @@ void move(int sensorCurValue) {
 void moveOneStep(int microSecs, boolean isForward) {
   digitalWrite(STEP_PIN, LOW);
   digitalWrite(STEP_PIN, HIGH);
-  if (isForward) curX++; else curX--;
+  if (isForward) curNbImpuls++; else curNbImpuls--;
   delayMicroseconds(microSecs);
 }
 
 void moveRelative(long nbImpuls) {
-  Serial.println("Relative moving back ...");
-  Serial.println(String(nbImpuls));
+  Serial.println("moveRelative");
+  Serial.println(nbImpuls);
   if (nbImpuls > 0) {
     digitalWrite(DIR_PIN, LOW); // We must go back
   }
@@ -193,18 +199,26 @@ void moveRelative(long nbImpuls) {
   for (long i=0; i<nbImpuls; i++) {
     moveOneStep(CRUISE_MOTOR_DELAY, (nbImpuls > 0));
   }
-  Serial.println("Done");
+  Serial.println("Ok");
 }
 
 void moveToZero() {
-  Serial.println("Moving to zero point");
-  moveRelative(curX);
-  curX = 0;
+  Serial.println("moveToZero");
+  moveRelative(curNbImpuls);
+  curNbImpuls = 0;
 }
 
 void moveToStartRecord() {
-  Serial.println("Moving to start record");
-  moveRelative(curX - startRecordX);
+  Serial.println("moveToSR");
+  //Serial.println(curNbImpuls);
+  //Serial.println(startRecordX);
+  moveRelative(curNbImpuls - startRecordX);
+}
+
+int freeRam () {
+  extern int __heap_start, *__brkval; 
+  int v; 
+  return (int) &v - (__brkval == 0 ? (int) &__heap_start : (int) __brkval); 
 }
 
 void stop() {
@@ -212,7 +226,7 @@ void stop() {
 }
 
 int readValueFromSensor(int pin) {
-  return analogRead(pin);
+  return analogRead(pin); // Get a value from 0 to 1023
 }
 
 boolean isMovingForward(int sensorValue) {

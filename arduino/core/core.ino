@@ -21,8 +21,9 @@ const int SENSOR_PIN_1 = A1;
 
 const unsigned int MOTOR_MIN_DELAY = 3;
 const unsigned int MOTOR_MAX_DELAY = 5000;
-const unsigned int CRUISE_MOTOR_DELAY = 1000; // Motor speed when moving to zero or start point
+const unsigned int CRUISE_MOTOR_DELAY = 100; // Motor speed when moving to zero or start point
 
+// Define a "dead band" so that the robot doesn't move within a range of values
 const unsigned int DEAD_BAND_INF = 505;
 const unsigned int DEAD_BAND_MID = 511;
 const unsigned int DEAD_BAND_SUP = 515;
@@ -41,12 +42,11 @@ const char ZERO = 'z'; // Set "zero" point
 const char GOTO_ZERO = 'h';
 const char GOTO_START = 'g'; // Go to start point of last record
 
-int nbImpulsFromZeroPoint = 0;
+long curX = 0; // Current motor position
+long startRecordX = 0; // Current motor position when start recording
 const unsigned int MAX_RECORDS = 3500;
-int nbImpulsFromStartRecordPoint = 0;
 int nbRecords = 0;
 const unsigned int RECORD_FREQ = 10; // in ms
-const unsigned int READ_FREQ = 1000; // read frequency from the input device in ms
 unsigned long lastReadTime = 0; // when the last reading from input device was done
 unsigned long recordTime = 0;
 unsigned int recordValues[MAX_RECORDS];
@@ -63,7 +63,7 @@ void setup() {
   cbi(ADCSRA,ADPS1) ;
   cbi(ADCSRA,ADPS0) ;
   
-  Serial.begin(115200);
+  Serial.begin(9600);
   pinMode(DIR_PIN, OUTPUT);
   pinMode(ENABLE_PIN, OUTPUT);
   pinMode(STEP_PIN, OUTPUT);
@@ -75,14 +75,13 @@ void setup() {
 
 void loop() {
   mainLoop();
-  //move(1023);
 }
 
 void mainLoop() {
   if (Serial.available() > 0) {
     cmdRead = Serial.read();
     if (cmdRead == RECORD) {
-      nbImpulsFromStartRecordPoint = 0;
+      startRecordX = curX;
       nbRecords = 0;
       Serial.println("Starting recording movement...");
     }
@@ -100,14 +99,6 @@ void mainLoop() {
         nbRecords++;
       }
       move(sensorCurValue);
-      if (isMovingForward(sensorCurValue)) {
-        nbImpulsFromStartRecordPoint++;
-        //Serial.println("Forward " + String(nbImpulsFromStartRecordPoint));
-      }
-      else if (isMovingBack(sensorCurValue)) {
-        nbImpulsFromStartRecordPoint--;
-        //Serial.println("Back " + String(nbImpulsFromStartRecordPoint));        
-      }
     }
     else {
       Serial.println("Maximum nb of records reached : " + String(MAX_RECORDS));
@@ -120,7 +111,8 @@ void mainLoop() {
   }
   else if (cmdRead == PLAY) {
     moveToStartRecord();
-    Serial.println("Replaying movement... " + String(nbRecords) + " records");
+    //Serial.println("Replaying movement... " + String(nbRecords) + " records");
+    Serial.println("Replaying movement... ");
     for (int i=0; i<nbRecords; i++) {
       unsigned long curTime = millis();
       // Replay sampling
@@ -130,13 +122,13 @@ void mainLoop() {
       }
     }
     digitalWrite(ENABLE_PIN, HIGH);
-    Serial.println("Done.");
+    Serial.println("Done");
     recordTime = 0;
     cmdRead = STOP;
   }
   else if (cmdRead == ZERO) {
-    Serial.println("Set zero point");
-    nbImpulsFromZeroPoint = 0;
+    Serial.println("Zero point set");
+    curX = 0;
   }
   else if (cmdRead == GOTO_ZERO) {
     moveToZero();
@@ -145,7 +137,8 @@ void mainLoop() {
   else if (cmdRead == STOP) {
     digitalWrite(ENABLE_PIN, HIGH);
     cmdRead = NONE;
-    Serial.println("Motor stopped.");
+    Serial.println("Motor stopped");
+    Serial.println("Current position : " + String(curX));
   }
   else if (cmdRead == NONE) {
     //Serial.println("Waiting for a command");
@@ -157,7 +150,7 @@ void mainLoop() {
 }
 
 void move(int sensorCurValue) {
-  if (isMovingBack(sensorCurValue)) { // Define a "dead band" so that the robot doesn't move within a range of values
+  if (isMovingBack(sensorCurValue)) {
     if (!lastDirLow) {
       digitalWrite(DIR_PIN, LOW); // Set the direction
     }
@@ -182,20 +175,14 @@ void move(int sensorCurValue) {
 
 void moveOneStep(int microSecs, boolean isForward) {
   digitalWrite(STEP_PIN, LOW);
-  //delayMicroseconds(2);
   digitalWrite(STEP_PIN, HIGH);
-  if (isForward) {
-    nbImpulsFromZeroPoint++;
-  }
-  else {
-    nbImpulsFromZeroPoint--;
-  }
+  if (isForward) curX++; else curX--;
   delayMicroseconds(microSecs);
 }
 
-void moveBackToPosition(int nbImpuls) {
-  Serial.println("Moving back to position ...");
-  Serial.println(String(nbImpuls) + " impulsions");
+void moveRelative(long nbImpuls) {
+  Serial.println("Relative moving back ...");
+  Serial.println(String(nbImpuls));
   if (nbImpuls > 0) {
     digitalWrite(DIR_PIN, LOW); // We must go back
   }
@@ -203,22 +190,21 @@ void moveBackToPosition(int nbImpuls) {
     digitalWrite(DIR_PIN, HIGH); // We must go forward
   }
   nbImpuls = abs(nbImpuls);
-  for (int i=0; i<nbImpuls; i++) {
+  for (long i=0; i<nbImpuls; i++) {
     moveOneStep(CRUISE_MOTOR_DELAY, (nbImpuls > 0));
   }
-  Serial.println("Done.");
+  Serial.println("Done");
 }
 
 void moveToZero() {
   Serial.println("Moving to zero point");
-  moveBackToPosition(nbImpulsFromZeroPoint);
-  nbImpulsFromZeroPoint = 0;
+  moveRelative(curX);
+  curX = 0;
 }
 
 void moveToStartRecord() {
   Serial.println("Moving to start record");
-  moveBackToPosition(nbImpulsFromStartRecordPoint);
-  nbImpulsFromStartRecordPoint = 0;
+  moveRelative(curX - startRecordX);
 }
 
 void stop() {
@@ -230,16 +216,12 @@ int readValueFromSensor(int pin) {
 }
 
 boolean isMovingForward(int sensorValue) {
-  if (sensorValue >= DEAD_BAND_SUP) {
-    return true;
-  }
+  if (sensorValue >= DEAD_BAND_SUP) return true;
   return false;
 }
 
 boolean isMovingBack(int sensorValue) {
-  if (sensorCurValue <= DEAD_BAND_INF) {
-    return true;
-  }
+  if (sensorCurValue <= DEAD_BAND_INF) return true;
   return false;
 }
 

@@ -46,6 +46,8 @@ const char STOP = 's';
 const char ZERO = 'z'; // Set "zero" point
 const char GOTO_ZERO = 'h';
 const char GOTO_START = 'g'; // Go to start point of last record
+const char SPEED_MODE = 'v'; // We move in "speed" mode (sensor value is a speed)
+const char POS_MODE = 'x'; // We move in "position" mode (sensor value is a position)
 
 long curNbImpuls = 0; // Current motor position
 long startRecordX = 0; // Current motor position when start recording
@@ -64,6 +66,7 @@ const float MAP_HIGH = (float)abs(MOTOR_MAX_DELAY - MOTOR_MIN_DELAY) / (float)ab
 const float MAP_LOW = ((float)MOTOR_MAX_DELAY - (float)MOTOR_MIN_DELAY) / (float)(1023 - 0);
 
 char cmdRead = STOP; // default action
+char moveMode = SPEED_MODE;
 
 void setup() {
   // To speed up analog read, set prescale to 16
@@ -129,6 +132,14 @@ void mainLoop() {
     moveToZero();
     cmdRead = NONE;
   }
+  else if (cmdRead == SPEED_MODE) {
+    moveMode = SPEED_MODE;
+    cmdRead = NONE;
+  }
+  else if (cmdRead == POS_MODE) {
+    moveMode = POS_MODE;
+    cmdRead = NONE;
+  }
   else if (cmdRead == STOP) {
     digitalWrite(ENABLE_PIN, HIGH);
     recordFile.close();
@@ -140,12 +151,30 @@ void mainLoop() {
     //Serial.println("Waiting for a command");
   }
   else {
-    Serial.print("Unknown cmd:" + cmdRead);
-    Serial.println(cmdRead);
+    Serial.print("Unknown cmd:" + String(cmdRead));
+    cmdRead = NONE;
   }
 }
 
 void move(int sensorCurValue) {
+  if (moveMode == SPEED_MODE) {
+    moveSpeedMode(sensorCurValue);
+  }
+  else if (moveMode == POS_MODE) {
+    movePosMode(sensorCurValue);
+  }
+  else {
+    Serial.println("Unknown mode :" + moveMode);
+  }
+}
+
+// Move when using a position sensor
+void movePosMode(int sensorCurValue) {
+  Serial.println("Position mode not implemented yet");
+}
+
+// Move when using a speed sensor
+void moveSpeedMode(int sensorCurValue) {
   if (isMovingBack(sensorCurValue)) {
     if (!lastDirLow) {
       digitalWrite(DIR_PIN, LOW); // Set the direction
@@ -210,7 +239,6 @@ void recordMovement() {
   sensorCurValue = readValueFromSensor(SENSOR_PIN_1);
   move(sensorCurValue);
   long curRecordTime = millis();
-  //recordFile.println("Hello");
   // Do sampling
   if (curRecordTime - lastRecordTime >= RECORD_FREQ) {
     recordFile.println(String(curRecordTime) + ";" + String(curNbImpuls));
@@ -243,7 +271,7 @@ void replayMovement() {
         unsigned long curTime = millis();
         // Replay sampling
         while (millis() - curTime < RECORD_FREQ) {
-          move(delayMsBetween2Impuls * 1000); // to get it in micro secs
+          //move(delayMsBetween2Impuls * 1000); // to get it in micro secs
           readValueFromSensor(SENSOR_PIN_1);  // Just to simulate the delay introduced when recording values
         }
         prevRecordTimeRead = curRecordTimeRead;
@@ -326,6 +354,7 @@ boolean initRecordFile() {
 }
 
 void displayCurInfos() {
+  Serial.println("Mode:" + String(moveMode));
   Serial.println("Cur pos:" + String(curNbImpuls));
   Serial.println("Records#:" + String(nbRecords));
   Serial.println("Ram:" + String(freeRam()));

@@ -276,7 +276,7 @@ void replayMovement() {
   Serial.println("Mvt replay");
   Serial.println("Nb records:" + String(nbRecords));
   Serial.println("Record length:" + String(getRecordLength()) + " ms");
-  //moveToStartRecord();
+  moveToStartRecord();
   recordFile = SD.open(recordFileName);
   if (recordFile) {
     Serial.println("Reading from file : " + String(recordFileName));

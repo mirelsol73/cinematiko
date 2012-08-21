@@ -29,15 +29,13 @@ const unsigned int MOTOR_MAX_DELAY = 5000;
 const unsigned int CRUISE_MOTOR_DELAY = 100; // Motor speed when moving to zero or start point
 const byte NB_OF_IMPULS_PER_STEP = 20;
 
+const unsigned int MAX_RECORDS = 100000;
+const unsigned int RECORD_FREQ = 10; // in ms
+
 // Define a "dead band" so that the robot doesn't move within a range of values
 const unsigned int DEAD_BAND_INF = 505;
 const unsigned int DEAD_BAND_MID = 511;
 const unsigned int DEAD_BAND_SUP = 515;
-
-unsigned int sensorCurValue = 0;
-unsigned int motorDelay = 0;
-
-boolean lastDirLow = true;
 
 const char NONE = 'n'; // Do nothing
 const char MOVE = 'm'; // Just move
@@ -50,24 +48,26 @@ const char GOTO_START = 'g'; // Go to start point of last record
 const char SPEED_MODE = 'v'; // We move in "speed" mode (sensor value is a speed)
 const char POS_MODE = 'x'; // We move in "position" mode (sensor value is a position)
 
-long curNbImpuls = 0; // Current motor position
-long startRecordNbImpuls = 0; // Current motor position when start recording
-const unsigned int MAX_RECORDS = 100000;
+unsigned int sensorCurValue;
+unsigned int motorDelay;
+long curNbImpuls;
+long startRecordNbImpuls;
+boolean lastDirLow;
+
 File recordFile; // Used to store records
 char * recordFileName = "records.txt";
 
-int nbRecords = 0;
-const unsigned int RECORD_FREQ = 10; // in ms
-unsigned long lastReadTime = 0; // when the last reading from input device was done
-unsigned long lastRecordTime = 0;
+int nbRecords;
+unsigned long lastReadTime;
+unsigned long lastRecordTime;
 
 
 // Constants used when computing mapping between input value (sensor) and output value (motor)
 const float MAP_HIGH = (float)abs(MOTOR_MAX_DELAY - MOTOR_MIN_DELAY) / (float)abs(1023 - DEAD_BAND_SUP);
 const float MAP_LOW = ((float)MOTOR_MAX_DELAY - (float)MOTOR_MIN_DELAY) / (float)(1023 - 0);
 
-char cmdRead = STOP; // default action
-char moveMode = SPEED_MODE;
+char cmdRead;
+char moveMode;
 
 void setup() {
   // To speed up analog read, set prescale to 16
@@ -77,16 +77,28 @@ void setup() {
 
   Serial.begin(9600);
 
+  // Default command and mode
+  cmdRead = STOP;
+  moveMode = SPEED_MODE;
+  
+  // Variable initialization
+  nbRecords = 0;
+  lastReadTime = 0; // when the last reading from input device was done
+  lastRecordTime = 0;
+  curNbImpuls = 0; // Current motor position
+  startRecordNbImpuls = 0; // Current motor position when start recording
+  sensorCurValue = 0;
+  motorDelay = 0;
+  lastDirLow = true;
+
   // Motor initialization
   pinMode(DIR_PIN, OUTPUT);
   pinMode(ENABLE_PIN, OUTPUT);
   pinMode(STEP_PIN, OUTPUT);
   digitalWrite(ENABLE_PIN, HIGH); // Enable motor
-
+  
   // SD card initialization
   if (! initSdCard()) return;
-
-  nbRecords = 0;
 }
 
 void loop() {

@@ -27,6 +27,7 @@ const byte SD_CARD_SS_PIN = 10;
 const unsigned int MOTOR_MIN_DELAY = 3;
 const unsigned int MOTOR_MAX_DELAY = 5000;
 const unsigned int CRUISE_MOTOR_DELAY = 100; // Motor speed when moving to zero or start point
+const byte NB_OF_IMPULS_PER_STEP = 20;
 
 // Define a "dead band" so that the robot doesn't move within a range of values
 const unsigned int DEAD_BAND_INF = 505;
@@ -50,7 +51,7 @@ const char SPEED_MODE = 'v'; // We move in "speed" mode (sensor value is a speed
 const char POS_MODE = 'x'; // We move in "position" mode (sensor value is a position)
 
 long curNbImpuls = 0; // Current motor position
-long startRecordX = 0; // Current motor position when start recording
+long startRecordNbImpuls = 0; // Current motor position when start recording
 const unsigned int MAX_RECORDS = 100000;
 File recordFile; // Used to store records
 char * recordFileName = "records.txt";
@@ -97,8 +98,9 @@ void mainLoop() {
     Serial.println("---");
     cmdRead = Serial.read();
     if (cmdRead == RECORD) {
-      startRecordX = curNbImpuls;
+      startRecordNbImpuls = curNbImpuls;
       nbRecords = 0;
+      lastRecordTime = 0;
       Serial.println("Recording movement");
       if (! initRecordFile()) return;
     }
@@ -182,7 +184,7 @@ void moveSpeedMode(int sensorCurValue) {
     lastDirLow = true;
     motorDelay = mapAnalogToDelayLow(sensorCurValue, 0, DEAD_BAND_INF, MOTOR_MIN_DELAY, MOTOR_MAX_DELAY);
     //motorDelay = map(sensorCurValue, 0, DEAD_BAND_INF, MOTOR_MIN_DELAY, MOTOR_MAX_DELAY);
-    moveOneImpuls(motorDelay, false);
+    moveOneStep(motorDelay, false);
   }
   else if (isMovingForward(sensorCurValue)) {
     if (lastDirLow) {
@@ -191,18 +193,19 @@ void moveSpeedMode(int sensorCurValue) {
     lastDirLow = false;
     motorDelay = mapAnalogToDelayHigh(sensorCurValue, DEAD_BAND_SUP, 1023, MOTOR_MIN_DELAY, MOTOR_MAX_DELAY);
     //motorDelay = map(sensorCurValue, DEAD_BAND_SUP, 1023, MOTOR_MAX_DELAY, MOTOR_MIN_DELAY);
-    moveOneImpuls(motorDelay, true);
+    moveOneStep(motorDelay, true);
   }
   else {
     digitalWrite(ENABLE_PIN, HIGH);
   }
 }
 
-void moveOneImpuls(int microSecs, boolean isForward) {
-  digitalWrite(STEP_PIN, LOW);
-  digitalWrite(STEP_PIN, HIGH);
-  if (isForward) curNbImpuls++; 
-  else curNbImpuls--;
+void moveOneStep(int microSecs, boolean isForward) {
+  //for (byte i=0; i<NB_OF_IMPULS_PER_STEP; i++) {
+    digitalWrite(STEP_PIN, LOW);
+    digitalWrite(STEP_PIN, HIGH);
+    if (isForward) curNbImpuls++; else curNbImpuls--;
+  //}
   delayMicroseconds(microSecs);
 }
 
@@ -217,7 +220,7 @@ void moveRelative(long nbImpuls) {
   }
   nbImpuls = abs(nbImpuls);
   for (long i=0; i<nbImpuls; i++) {
-    moveOneImpuls(CRUISE_MOTOR_DELAY, (nbImpuls > 0));
+    moveOneStep(CRUISE_MOTOR_DELAY, (nbImpuls > 0));
   }
   Serial.println("Ok");
 }
@@ -229,10 +232,16 @@ void moveToZero() {
 }
 
 void moveToStartRecord() {
-  Serial.println("moveToSR");
+  Serial.println("Move to start record");
   //Serial.println(curNbImpuls);
-  //Serial.println(startRecordX);
-  moveRelative(curNbImpuls - startRecordX);
+  //Serial.println(startRecordNbImpuls);
+  moveRelative(curNbImpuls - startRecordNbImpuls);
+  if (curNbImpuls != startRecordNbImpuls) {
+    Serial.println("Error:couldn't move to start point");
+  }
+  else {
+    Serial.println("Move to start point successful");
+  }
 }
 
 void recordMovement() {
@@ -242,15 +251,32 @@ void recordMovement() {
   // Do sampling
   if (curRecordTime - lastRecordTime >= RECORD_FREQ) {
     recordFile.println(String(curRecordTime) + ";" + String(curNbImpuls));
-    //recordValues[nbRecords] = sensorCurValue;
     lastRecordTime = millis();
     nbRecords++;
   }
 }
 
+long getRecordLength() {
+  recordFile = SD.open(recordFileName);
+  long recordLength = 0, firstRecordTime, tempTimeRead, recordTimeRead;
+  if (recordFile.available()) {
+    firstRecordTime = recordFile.parseInt();
+    recordFile.parseInt();
+  }
+  while(recordFile.available()) {
+    tempTimeRead = recordFile.parseInt();
+    recordFile.parseInt();
+    if (tempTimeRead != 0) recordTimeRead = tempTimeRead;
+  }
+  recordFile.close();
+  return recordTimeRead - firstRecordTime;
+}
+
 void replayMovement() {
-  moveToStartRecord();
   Serial.println("Mvt replay");
+  Serial.println("Nb records:" + String(nbRecords));
+  Serial.println("Record length:" + String(getRecordLength()) + " ms");
+  //moveToStartRecord();
   recordFile = SD.open(recordFileName);
   if (recordFile) {
     Serial.println("Reading from file : " + String(recordFileName));
@@ -260,19 +286,15 @@ void replayMovement() {
       prevNbImpulsRead = recordFile.parseInt();
     }
     float delayMsBetween2Impuls;
+    unsigned int nbImpulsToMove;
     while (recordFile.available()) {
       curRecordTimeRead = recordFile.parseInt();
       curNbImpulsRead = recordFile.parseInt();
       if (curRecordTimeRead - prevRecordTimeRead > 0) {
-        //Serial.println(curRecordTimeRead - prevRecordTimeRead);
-        //Serial.println(curNbImpulsRead - prevNbImpulsRead);
-        delayMsBetween2Impuls = 1/abs((float)(curNbImpulsRead - prevNbImpulsRead) / (float)(curRecordTimeRead - prevRecordTimeRead));
-        Serial.println(delayMsBetween2Impuls);
-        unsigned long curTime = millis();
-        // Replay sampling
-        while (millis() - curTime < RECORD_FREQ) {
-          //move(delayMsBetween2Impuls * 1000); // to get it in micro secs
-          readValueFromSensor(SENSOR_PIN_1);  // Just to simulate the delay introduced when recording values
+        delayMsBetween2Impuls = 1/abs((float)(curNbImpulsRead - prevNbImpulsRead) / (float)RECORD_FREQ);
+        nbImpulsToMove = abs(curNbImpulsRead) - abs(prevNbImpulsRead);
+        for (int i=0; i<nbImpulsToMove; i++) {
+          moveOneStep(delayMsBetween2Impuls * 1000, (curNbImpulsRead - prevNbImpulsRead > 0)); // to get it in micro secs
         }
         prevRecordTimeRead = curRecordTimeRead;
         prevNbImpulsRead = curNbImpulsRead;
@@ -280,7 +302,6 @@ void replayMovement() {
     }
     digitalWrite(ENABLE_PIN, HIGH);
     Serial.println("Ok");
-    lastRecordTime = 0;
   } 
   else {
     // if the file didn't open, print an error:
@@ -356,7 +377,6 @@ boolean initRecordFile() {
 void displayCurInfos() {
   Serial.println("Mode:" + String(moveMode));
   Serial.println("Cur pos:" + String(curNbImpuls));
-  Serial.println("Records#:" + String(nbRecords));
   Serial.println("Ram:" + String(freeRam()));
 }
 

@@ -121,6 +121,33 @@ void mainLoop() {
     else if (cmdRead == ERASE_RECORD) {
       initRecordFile();
     }
+    else if (cmdRead == ZERO) {
+      Serial.println("Zero set");
+      curNbImpuls = 0;
+    }
+    else if (cmdRead == GOTO_ZERO) {
+      moveToZero();
+      cmdRead = NONE;
+    }
+    else if (cmdRead == GOTO_START) {
+      moveToStartRecord();
+      cmdRead = NONE;
+    }
+    else if (cmdRead == SPEED_MODE) {
+      moveMode = SPEED_MODE;
+      cmdRead = NONE;
+    }
+    else if (cmdRead == POS_MODE) {
+      moveMode = POS_MODE;
+      cmdRead = NONE;
+    }
+    else if (cmdRead == STOP) {
+      digitalWrite(ENABLE_PIN, HIGH);
+      recordFile.close();
+      cmdRead = NONE;
+      Serial.println("Stop");
+      displayCurInfos();
+    }
   }
   if (cmdRead == MOVE) {
     sensorCurValue = readValueFromSensor(SENSOR_PIN_1);
@@ -135,36 +162,9 @@ void mainLoop() {
       cmdRead = STOP;
     }
   }
-  else if (cmdRead == GOTO_START) {
-    moveToStartRecord();
-    cmdRead = NONE;
-  }
   else if (cmdRead == PLAY) {
     replayMovement();
     cmdRead = STOP;
-  }
-  else if (cmdRead == ZERO) {
-    Serial.println("Zero set");
-    curNbImpuls = 0;
-  }
-  else if (cmdRead == GOTO_ZERO) {
-    moveToZero();
-    cmdRead = NONE;
-  }
-  else if (cmdRead == SPEED_MODE) {
-    moveMode = SPEED_MODE;
-    cmdRead = NONE;
-  }
-  else if (cmdRead == POS_MODE) {
-    moveMode = POS_MODE;
-    cmdRead = NONE;
-  }
-  else if (cmdRead == STOP) {
-    digitalWrite(ENABLE_PIN, HIGH);
-    recordFile.close();
-    cmdRead = NONE;
-    Serial.println("Stop");
-    displayCurInfos();
   }
   else if (cmdRead == NONE) {
     //Serial.println("Waiting for a command");

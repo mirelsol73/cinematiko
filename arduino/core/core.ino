@@ -192,28 +192,15 @@ void movePosMode(int sensorCurValue) {
 // Move when using a speed sensor
 void moveSpeedMode(int sensorCurValue) {
   if (isMovingBack(sensorCurValue)) {
-    //if (!lastDirLow) {
-    //digitalWrite(DIR_PIN, LOW); // Set the direction
-    //}
     lastDirLow = true;
     motorDelay = mapAnalogToDelayLow(sensorCurValue, 0, DEAD_BAND_INF, MOTOR_MIN_DELAY, MOTOR_MAX_DELAY);
-    //motorDelay = map(sensorCurValue, 0, DEAD_BAND_INF, MOTOR_MIN_DELAY, MOTOR_MAX_DELAY);
     moveOneStep(motorDelay, false);
   }
   else if (isMovingForward(sensorCurValue)) {
-    //if (lastDirLow) {
-    //digitalWrite(DIR_PIN, HIGH); // Set the direction
-    //}
     lastDirLow = false;
     motorDelay = mapAnalogToDelayHigh(sensorCurValue, DEAD_BAND_SUP, 1023, MOTOR_MIN_DELAY, MOTOR_MAX_DELAY);
-    //motorDelay = map(sensorCurValue, DEAD_BAND_SUP, 1023, MOTOR_MAX_DELAY, MOTOR_MIN_DELAY);
     moveOneStep(motorDelay, true);
   }
-  /*
-  else {
-    digitalWrite(ENABLE_PIN, HIGH);
-  }
-  */
 }
 
 void moveOneStep(int microSecs, boolean isForward) {
@@ -236,14 +223,6 @@ void moveRelative(long nbImpuls) {
   Serial.println("moveRelative");
   Serial.println(nbImpuls);
   boolean isForward = (nbImpuls >= 0);
-  /*
-  if (nbImpuls > 0) {
-    digitalWrite(DIR_PIN, HIGH); // We must go forward
-  }
-  else {
-    digitalWrite(DIR_PIN, LOW); // We must go back
-  }
-  */
   nbImpuls = abs(nbImpuls);
   for (long i=0; i<nbImpuls; i++) {
     moveOneStep(CRUISE_MOTOR_DELAY, isForward);
@@ -258,8 +237,6 @@ void moveToZero() {
 
 void moveToStartRecord() {
   Serial.println("Move to start record");
-  //moveRelative(curNbImpuls - startRecordNbImpuls);
-  
   moveRelative(startRecordNbImpuls - curNbImpuls);
   if (curNbImpuls != startRecordNbImpuls) {
     Serial.println("Error:couldn't move to start point");
@@ -301,7 +278,7 @@ void replayMovement() {
   Serial.println("Mvt replay");
   Serial.println("Nb records:" + String(nbRecords));
   Serial.println("Record length:" + String(getRecordLength()) + " ms");
-  //moveToStartRecord();
+
   recordFile = SD.open(recordFileName);
   if (recordFile) {
     Serial.println("Reading from file : " + String(recordFileName));
@@ -316,9 +293,7 @@ void replayMovement() {
       curRecordTimeRead = recordFile.parseInt();
       curNbImpulsRead = recordFile.parseInt();
       if (curRecordTimeRead - prevRecordTimeRead > 0) {
-        //delayMsBetween2Impuls = 1/abs((float)(curNbImpulsRead - prevNbImpulsRead) / (float)RECORD_FREQ);
         delayMsBetween2Impuls = ((float)RECORD_FREQ) / abs((float)(curNbImpulsRead - prevNbImpulsRead));
-        //nbImpulsToMove = abs(curNbImpulsRead) - abs(prevNbImpulsRead);
         nbImpulsToMove = abs(curNbImpulsRead - prevNbImpulsRead);
         for (int i=0; i<nbImpulsToMove; i++) {
           moveOneStep(delayMsBetween2Impuls * 1000, (curNbImpulsRead - prevNbImpulsRead > 0)); // to get it in micro secs
@@ -412,5 +387,4 @@ int freeRam () {
   int v; 
   return (int) &v - (__brkval == 0 ? (int) &__heap_start : (int) __brkval); 
 }
-
 

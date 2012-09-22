@@ -40,6 +40,7 @@ const unsigned int DEAD_BAND_SUP = 515;
 const char NONE = 'n'; // Do nothing
 const char MOVE = 'm'; // Just move
 const char RECORD = 'r'; // Move and record
+const char ERASE_RECORD = 'e'; // Erase record file
 const char PLAY = 'p'; // Replay movement
 const char STOP = 's';
 const char ZERO = 'z'; // Set "zero" point
@@ -102,7 +103,9 @@ void setup() {
 }
 
 void loop() {
-  mainLoop();
+  //mainLoop();
+  digitalWrite(DIR_PIN, HIGH);
+  move(5);
 }
 
 void mainLoop() {
@@ -113,8 +116,11 @@ void mainLoop() {
       startRecordNbImpuls = curNbImpuls;
       nbRecords = 0;
       lastRecordTime = 0;
+      if (! initRecordFile()) return;      
       Serial.println("Recording movement");
-      if (! initRecordFile()) return;
+    }
+    else if (cmdRead == ERASE_RECORD) {
+      initRecordFile();
     }
   }
   if (cmdRead == MOVE) {
@@ -190,33 +196,42 @@ void movePosMode(int sensorCurValue) {
 // Move when using a speed sensor
 void moveSpeedMode(int sensorCurValue) {
   if (isMovingBack(sensorCurValue)) {
-    if (!lastDirLow) {
-      digitalWrite(DIR_PIN, LOW); // Set the direction
-    }
+    //if (!lastDirLow) {
+    //digitalWrite(DIR_PIN, LOW); // Set the direction
+    //}
     lastDirLow = true;
     motorDelay = mapAnalogToDelayLow(sensorCurValue, 0, DEAD_BAND_INF, MOTOR_MIN_DELAY, MOTOR_MAX_DELAY);
     //motorDelay = map(sensorCurValue, 0, DEAD_BAND_INF, MOTOR_MIN_DELAY, MOTOR_MAX_DELAY);
     moveOneStep(motorDelay, false);
   }
   else if (isMovingForward(sensorCurValue)) {
-    if (lastDirLow) {
-      digitalWrite(DIR_PIN, HIGH); // Set the direction
-    }
+    //if (lastDirLow) {
+    //digitalWrite(DIR_PIN, HIGH); // Set the direction
+    //}
     lastDirLow = false;
     motorDelay = mapAnalogToDelayHigh(sensorCurValue, DEAD_BAND_SUP, 1023, MOTOR_MIN_DELAY, MOTOR_MAX_DELAY);
     //motorDelay = map(sensorCurValue, DEAD_BAND_SUP, 1023, MOTOR_MAX_DELAY, MOTOR_MIN_DELAY);
     moveOneStep(motorDelay, true);
   }
+  /*
   else {
     digitalWrite(ENABLE_PIN, HIGH);
   }
+  */
 }
 
 void moveOneStep(int microSecs, boolean isForward) {
   //for (byte i=0; i<NB_OF_IMPULS_PER_STEP; i++) {
-    digitalWrite(STEP_PIN, LOW);
-    digitalWrite(STEP_PIN, HIGH);
-    if (isForward) curNbImpuls++; else curNbImpuls--;
+  digitalWrite(STEP_PIN, LOW);
+  digitalWrite(STEP_PIN, HIGH);
+  if (isForward) {
+    curNbImpuls++;
+    digitalWrite(DIR_PIN, HIGH);
+  }
+  else {
+    curNbImpuls--;
+    digitalWrite(DIR_PIN, LOW);
+  }
   //}
   delayMicroseconds(microSecs);
 }
@@ -224,30 +239,32 @@ void moveOneStep(int microSecs, boolean isForward) {
 void moveRelative(long nbImpuls) {
   Serial.println("moveRelative");
   Serial.println(nbImpuls);
+  boolean isForward = (nbImpuls >= 0);
+  /*
   if (nbImpuls > 0) {
-    digitalWrite(DIR_PIN, LOW); // We must go back
-  }
-  else {
     digitalWrite(DIR_PIN, HIGH); // We must go forward
   }
+  else {
+    digitalWrite(DIR_PIN, LOW); // We must go back
+  }
+  */
   nbImpuls = abs(nbImpuls);
   for (long i=0; i<nbImpuls; i++) {
-    moveOneStep(CRUISE_MOTOR_DELAY, (nbImpuls > 0));
+    moveOneStep(CRUISE_MOTOR_DELAY, isForward);
   }
   Serial.println("Ok");
 }
 
 void moveToZero() {
   Serial.println("moveToZero");
-  moveRelative(curNbImpuls);
-  curNbImpuls = 0;
+  moveRelative(-curNbImpuls);
 }
 
 void moveToStartRecord() {
   Serial.println("Move to start record");
-  //Serial.println(curNbImpuls);
-  //Serial.println(startRecordNbImpuls);
-  moveRelative(curNbImpuls - startRecordNbImpuls);
+  //moveRelative(curNbImpuls - startRecordNbImpuls);
+  
+  moveRelative(startRecordNbImpuls - curNbImpuls);
   if (curNbImpuls != startRecordNbImpuls) {
     Serial.println("Error:couldn't move to start point");
   }

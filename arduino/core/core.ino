@@ -104,7 +104,7 @@ void setup() {
 
 void loop() {
   mainLoop();
-  //digitalWrite(DIR_PIN, LOW);
+  //digitalWrite(DIR_PIN, HIGH);
   //move(5);
 }
 
@@ -169,10 +169,6 @@ void mainLoop() {
   }
   else if (cmdRead == NONE) {
     //Serial.println("Waiting for a command");
-  }
-  else {
-    Serial.print("Unknown cmd:" + String(cmdRead));
-    cmdRead = NONE;
   }
 }
 
@@ -305,7 +301,7 @@ void replayMovement() {
   Serial.println("Mvt replay");
   Serial.println("Nb records:" + String(nbRecords));
   Serial.println("Record length:" + String(getRecordLength()) + " ms");
-  moveToStartRecord();
+  //moveToStartRecord();
   recordFile = SD.open(recordFileName);
   if (recordFile) {
     Serial.println("Reading from file : " + String(recordFileName));
@@ -320,8 +316,10 @@ void replayMovement() {
       curRecordTimeRead = recordFile.parseInt();
       curNbImpulsRead = recordFile.parseInt();
       if (curRecordTimeRead - prevRecordTimeRead > 0) {
-        delayMsBetween2Impuls = 1/abs((float)(curNbImpulsRead - prevNbImpulsRead) / (float)RECORD_FREQ);
-        nbImpulsToMove = abs(curNbImpulsRead) - abs(prevNbImpulsRead);
+        //delayMsBetween2Impuls = 1/abs((float)(curNbImpulsRead - prevNbImpulsRead) / (float)RECORD_FREQ);
+        delayMsBetween2Impuls = ((float)RECORD_FREQ) / abs((float)(curNbImpulsRead - prevNbImpulsRead));
+        //nbImpulsToMove = abs(curNbImpulsRead) - abs(prevNbImpulsRead);
+        nbImpulsToMove = abs(curNbImpulsRead - prevNbImpulsRead);
         for (int i=0; i<nbImpulsToMove; i++) {
           moveOneStep(delayMsBetween2Impuls * 1000, (curNbImpulsRead - prevNbImpulsRead > 0)); // to get it in micro secs
         }

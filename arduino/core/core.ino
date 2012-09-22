@@ -103,9 +103,9 @@ void setup() {
 }
 
 void loop() {
-  //mainLoop();
-  digitalWrite(DIR_PIN, HIGH);
-  move(5);
+  mainLoop();
+  //digitalWrite(DIR_PIN, LOW);
+  //move(5);
 }
 
 void mainLoop() {

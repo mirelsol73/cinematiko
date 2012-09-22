@@ -33,9 +33,8 @@ const unsigned int MAX_RECORDS = 100000;
 const unsigned int RECORD_FREQ = 10; // in ms
 
 // Define a "dead band" so that the robot doesn't move within a range of values
-const unsigned int DEAD_BAND_INF = 505;
-const unsigned int DEAD_BAND_MID = 511;
-const unsigned int DEAD_BAND_SUP = 515;
+const unsigned int DEAD_BAND_INF = 490;
+const unsigned int DEAD_BAND_SUP = 530;
 
 const char NONE = 'n'; // Do nothing
 const char MOVE = 'm'; // Just move

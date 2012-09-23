@@ -1,5 +1,6 @@
 /*
  Control a brushless motor using a potentiometer
+ Works with ARDUINO MEGA 2560 card 
  Authors : Alexandre Massot and Marc Schneider
  */
 

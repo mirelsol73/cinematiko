@@ -17,7 +17,6 @@ class SocketServer():
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.bind((HOST, PORT))
         self.sock.listen(BACKLOG)
-        print("Socket server initialized")
     
     def accept(self):
         self.client, self.address = self.sock.accept()

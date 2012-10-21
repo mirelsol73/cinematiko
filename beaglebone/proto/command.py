@@ -13,7 +13,6 @@ core_bb_pid = None
 current_cmd = None
 
 valid_commands = {
-    'er': {'help': "Erase current record data"},
     'g': {'help': "Go to start point of last record"},
     'h': {'help': "Go to zero point"},
     'i': {'help': "Display infos"},
@@ -22,15 +21,19 @@ valid_commands = {
     's': {'help': "Stop the system"},
     'r': {'help': "Record a movement"},
     'rd': {'help': "Display current record content"},
+    're': {'help': "Erase current record data"},    
     'q': {'help': "Quit the program"},
     'z': {'help': "Set zero point"},
     'help': {'help': "Print help message"},
 }
 
 def send_cmd_to_core_bb(cmd):
-    s = my_socket.SocketClient()
+    try:
+        s = my_socket.SocketClient()
+    except:
+        print("Can't contact core_bb, leaving!")
+        quit()
     s.send_data(cmd)
-    print("... command sent.")
 
 def help():
     for cmd in valid_commands:
@@ -62,7 +65,12 @@ def wait_for_cmd():
         elif input in valid_commands:
             current_cmd = input
             send_cmd_to_core_bb(current_cmd)
-            os.kill(int(core_bb_pid), signal.SIGUSR1)
+            try:
+                os.kill(int(core_bb_pid), signal.SIGUSR1)
+            except OSError, e:
+                print(e)
+                quit()
+            print("... command sent.")
             if current_cmd == 'q':
                 quit()
         else:

@@ -259,7 +259,6 @@ def cmd_move():
         move()
     end = millis()
     print("End moving.")
-    print("Duration : %d ms" % (end - start))
 
 def cmd_set_zero_point():
     global cur_cmd

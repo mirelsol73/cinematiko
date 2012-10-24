@@ -85,11 +85,11 @@ def set_zero_point():
         cur_nb_impuls[axis_nb] = 0
 
 def move_one_axis(axis_nb, potent_value):
-    if is_moving_back(potent_value):
+    if potent_value <= POTENT_DEAD_BAND_INF: # Move back
         motor_delay = linear_translation(potent_value, POTENT_DEAD_BAND_INF, POTENT_MIN, 
                                                        MOTOR_MAX_DELAY, MOTOR_MIN_DELAY)
         move_one_step(axis_nb, motor_delay, False)
-    elif is_moving_forward(potent_value):
+    elif if potent_value >= POTENT_DEAD_BAND_SUP: # Move forward
         motor_delay = linear_translation(potent_value, POTENT_DEAD_BAND_SUP, POTENT_MAX, 
                                          MOTOR_MAX_DELAY, MOTOR_MIN_DELAY)
         motor_delay = 3
@@ -179,16 +179,6 @@ def get_potent_value(axis_nb):
     val = analogRead(POTENT_PINS[axis_nb])
     #print("get potent val : %d" % val)
     return 1023
-
-def is_moving_forward(potent_value):
-    if (potent_value >= POTENT_DEAD_BAND_SUP):
-        return True
-    return False
-
-def is_moving_back(potent_value):
-    if (potent_value <= POTENT_DEAD_BAND_INF):
-        return True
-    return False
 
 # Motion control functions
 

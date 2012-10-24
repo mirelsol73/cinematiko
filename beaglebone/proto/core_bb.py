@@ -322,7 +322,7 @@ commands = {
     'z': cmd_set_zero_point,
 }
 
-def get_external_cmd(signum, frame):
+def on_external_cmd(signum, frame):
     '''Called when a command is sent from command.py'''
     
     global cur_cmd
@@ -338,7 +338,7 @@ def get_external_cmd(signum, frame):
     else:
         cur_cmd = new_cmd
 
-signal.signal(signal.SIGUSR1, get_external_cmd)
+signal.signal(signal.SIGUSR1, on_external_cmd)
 signal.signal(signal.SIGINT, ctrlc) # CTRL-C
 
 def setup():

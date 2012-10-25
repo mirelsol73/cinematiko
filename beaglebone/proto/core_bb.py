@@ -86,8 +86,8 @@ def set_zero_point():
 
 def move_one_axis(axis_nb, potent_value):
     if potent_value <= POTENT_DEAD_BAND_INF: # Move back
-        motor_delay = linear_translation(potent_value, POTENT_DEAD_BAND_INF, POTENT_MIN, 
-                                                       MOTOR_MAX_DELAY, MOTOR_MIN_DELAY)
+        motor_delay = linear_translation(potent_value, POTENT_MIN, POTENT_DEAD_BAND_INF, 
+                                                       MOTOR_MIN_DELAY, MOTOR_MAX_DELAY)
         move_one_step(axis_nb, motor_delay, False)
     elif if potent_value >= POTENT_DEAD_BAND_SUP: # Move forward
         motor_delay = linear_translation(potent_value, POTENT_DEAD_BAND_SUP, POTENT_MAX, 

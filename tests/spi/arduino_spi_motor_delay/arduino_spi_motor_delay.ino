@@ -80,7 +80,7 @@ void setup() {
   
   // SPI initialization
   // have to send on master in, *slave out*
-  pinMode(MISO, OUTPUT);
+  //pinMode(MISO, OUTPUT);
   
   // turn on SPI in slave mode
   SPCR |= _BV(SPE);

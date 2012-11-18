@@ -8,7 +8,7 @@
 
 byte buf[2];
 volatile byte pos;
-volatile boolean process_it;
+volatile boolean process_motor_delay;
 
 // Defines for setting and clearing register bits
 // This is to speed up analog read
@@ -87,7 +87,7 @@ void setup() {
   
   // get ready for an interrupt 
   pos = 0;   // buffer empty
-  process_it = false;
+  process_motor_delay = false;
 
   // now turn on interrupts
   SPI.attachInterrupt();  
@@ -96,59 +96,43 @@ void setup() {
 // SPI interrupt routine
 ISR (SPI_STC_vect)
 {
-  //byte c = SPDR;  // grab byte from SPI Data Register
   byte c = SPDR;  // grab byte from SPI Data Register
   // add to buffer if room
-  if (pos < sizeof buf)
-    {
-    buf [pos++] = c;
-    
-    if (pos == 2) // 2nd byte
-      process_it = true;
-      
-    }  // end of room available
- 
 
+  buf [pos++] = c;
+    
+  if (pos == 2) // 2nd byte
+    process_motor_delay = true;
 }  // end of interrupt routine SPI_STC_vect
 
 void loop() {
   mainLoop();
-  //digitalWrite(DIR_PIN, HIGH);
-  //move(5);
 }
 
 void mainLoop() {
   cmdRead = MOVE;
   if (cmdRead == MOVE) {
-    //sensorCurValue = readValueFromSensor(SENSOR_PIN_1);
-    //move(sensorCurValue);
     moveOneStep(motorDelay, true);
+  }
+  else if (cmdRead == STOP) {
+    stop();
   }
   else if (cmdRead == NONE) {
     //Serial.println("Waiting for a command");
   }
   
-  if (process_it) {
+  if (process_motor_delay) {
     //buf [pos] = 0;
     //Serial.println(String(buf[0], HEX));
     //Serial.println(String(buf[1], HEX));
     motorDelay = String(buf[0]).toInt() + String(buf[1] << 8, DEC).toInt();
     Serial.println(motorDelay);
-    /*
-    Serial.println(String(buf[0], HEX));
-    Serial.println(String(buf[1], HEX));
-    String val = "0x" + String(buf[1], HEX) + String(buf[0], HEX);
-    Serial.println(val);
-    Serial.println(String(buf[0], DEC));
-    Serial.println(String(buf[1] << 8, DEC));
-    */
     pos = 0;
-    process_it = false;
-  }  // end of flag set  
+    process_motor_delay = false;
+  }
 }
 
 void moveOneStep(int microSecs, boolean isForward) {
-  //for (byte i=0; i<NB_OF_IMPULS_PER_STEP; i++) {
   digitalWrite(STEP_PIN, LOW);
   digitalWrite(STEP_PIN, HIGH);
   if (isForward) {
@@ -159,7 +143,6 @@ void moveOneStep(int microSecs, boolean isForward) {
     curNbImpuls--;
     digitalWrite(DIR_PIN, LOW);
   }
-  //}
   delayMicroseconds(microSecs);
 }
 

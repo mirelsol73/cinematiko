@@ -79,8 +79,6 @@ void setup() {
   digitalWrite(ENABLE_PIN, HIGH); // Enable motor
   
   // SPI initialization
-  // have to send on master in, *slave out*
-  //pinMode(MISO, OUTPUT);
   
   // turn on SPI in slave mode
   SPCR |= _BV(SPE);
